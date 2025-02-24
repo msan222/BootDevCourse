@@ -1,0 +1,1 @@
+call http.NotFound(w, req) reponse to return a 404 error
