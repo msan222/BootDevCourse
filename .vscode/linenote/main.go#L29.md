@@ -1,0 +1,2 @@
+- http.ResponseWriter is an interface that Go provides to write back to an HTTP client. 
+- The goal of metricsHandler is to send the number of requests processed, which needs a way to write back. 

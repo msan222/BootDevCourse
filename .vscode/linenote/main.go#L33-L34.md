@@ -1,0 +1,1 @@
+this line formats and writes to the specified writer, which in this case is w the http.ResponseWriter

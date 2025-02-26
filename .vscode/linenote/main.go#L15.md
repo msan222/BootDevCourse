@@ -1,0 +1,1 @@
+custom type that will hold how many requests have been made.
