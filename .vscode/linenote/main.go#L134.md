@@ -1,0 +1,1 @@
+Retrieves the connection string

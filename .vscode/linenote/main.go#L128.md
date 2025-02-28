@@ -1,0 +1,1 @@
+This loads the enviroment variables to the .env file into the Go runtime enviroment, making them accessible via os.Getenv()

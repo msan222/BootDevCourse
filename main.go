@@ -1,17 +1,69 @@
 package main
 
 import (
+	"BootDevCourse/internal/database"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"regexp"
 	"sync/atomic"
+
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 )
+
+type CreateUserRequest struct {
+	Email string `json:"email"`
+}
+
+type CreateUserResponse struct {
+	ID        string `json:"id"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+	Email     string `json:"email"`
+}
+
+func (cfg *apiConfig) createUserHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	//read and decode JSON request body
+	var req CreateUserRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		http.Error(w, "Invalid Request Body", http.StatusBadRequest)
+		return
+	}
+
+	//Call database to create user
+	user, err := cfg.dbQueries.CreateUser(r.Context(), req.Email)
+	if err != nil {
+		http.Error(w, "Failed to Create User", http.StatusInternalServerError)
+		return
+	}
+
+	//Build Response
+	resp := CreateUserResponse{
+		ID:        user.ID.String(),
+		CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		UpdatedAt: user.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+		Email:     user.Email,
+	}
+
+	//Send the JSON response
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(resp)
+}
 
 var profaneWords = []string{"kerfuffle", "sharbert", "fornax"}
 
-type ChirpRequest struct {
+type ChirpRequest struct { // holds body of incoming JSON request
 	Body string `json:"body"`
 }
 
@@ -59,6 +111,7 @@ func validateChirpHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//String made from calling cleanChirpText to clean the body of the request.
 	cleanedBody := cleanChirpText(request.Body)
 
 	w.WriteHeader(http.StatusOK)
@@ -78,6 +131,7 @@ func healthzHandler(w http.ResponseWriter, r *http.Request) {
 
 type apiConfig struct {
 	fileserverHits atomic.Int32
+	dbQueries      *database.Queries
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -110,15 +164,53 @@ func (cfg *apiConfig) resetHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
+
+	//check for dev mode
+	if os.Getenv("PLATFORM") != "dev" {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	//call database to delete all users.
+	err := cfg.dbQueries.DeleteAllUsers(r.Context())
+	if err != nil {
+		http.Error(w, "Failed to delete users", http.StatusInternalServerError)
+		return
+	}
+
 	cfg.fileserverHits.Store(0)
 	w.Header().Set("Content-Type", "text/plain")
-	fmt.Fprintf(w, "Hits reset to 0")
+	fmt.Fprintf(w, "All users deleted. Hits reset to 0")
 }
 
 func main() {
-	apiCfg := &apiConfig{}
+	//load enviroment variables from .env
+	err1 := godotenv.Load()
+	if err1 != nil {
+		log.Fatal("Error loading .env file")
+	}
+
+	//get database connection from enviroment variables
+	dbURL := os.Getenv("DB_URL")
+
+	//open a connection to the PostgreSQL database
+	db, err1 := sql.Open("postgres", dbURL)
+	if err1 != nil {
+		log.Fatal("Error connecting to the database: ", err1)
+	}
+	defer db.Close()
+
+	fmt.Println("Successfully connected to the database!")
+
+	//Initialize SQLC queries package
+	dbQueries := database.New(db)
+
+	apiCfg := &apiConfig{
+		dbQueries: dbQueries,
+	}
 	mux := http.NewServeMux()
 
+	mux.HandleFunc("/api/users", apiCfg.createUserHandler)
 	mux.HandleFunc("/api/validate_chirp", validateChirpHandler)
 	mux.HandleFunc("/admin/metrics", apiCfg.metricsHandler)
 	mux.HandleFunc("/admin/reset", apiCfg.resetHandler)

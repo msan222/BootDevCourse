@@ -1,0 +1,1 @@
+This ensures that the database connection will be closed when the function returns. (free resources and prevent leaks)
