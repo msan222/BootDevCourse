@@ -1,0 +1,8 @@
+### Test Chirp Method
+POST http://localhost:8080/api/chirps
+Content-Type: application/json
+
+{
+    "body": "Chirp chirp I'm tired",
+    "user_id": "123e4567-e89b-12d3-a456-426614174000"
+}
