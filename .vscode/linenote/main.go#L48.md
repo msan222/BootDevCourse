@@ -1,0 +1,1 @@
+loops through each chirp formatting it into a CreateChirpResponse object and puts it into the responses slice

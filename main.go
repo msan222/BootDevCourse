@@ -29,6 +29,82 @@ type CreateChirpResponse struct {
 	UserID    string `json:"user_id"`
 }
 
+func (cfg *apiConfig) getChirpByIDHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract the Chirp ID from the path
+	chirpID := r.PathValue("chirpID")
+	if chirpID == "" {
+		http.Error(w, "Missing chirp ID", http.StatusBadRequest)
+		return
+	}
+
+	//parse the Chirp id into a uuid
+	chirpUUID, err := uuid.Parse(chirpID)
+	if err != nil {
+		http.Error(w, "Invalid chirp ID", http.StatusBadRequest)
+		return
+	}
+
+	//Query the database for the chirp
+	chirp, err := cfg.dbQueries.GetChirpByID(r.Context(), chirpUUID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "Chirp not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	//Format chirp into response struct
+	resp := CreateChirpResponse{
+		ID:        chirp.ID.String(),
+		CreatedAt: chirp.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		UpdatedAt: chirp.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+		Body:      chirp.Body,
+		UserID:    chirp.UserID.String(),
+	}
+
+	//Return response as JSON
+	w.Header().Set("Content-type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+func (cfg *apiConfig) getChirpsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	//Call generated query to list chirps
+	chirps, err := cfg.dbQueries.GetAllChirps(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	//prepare a response slice using the same structure as  CreateChirpResponse
+	responses := make([]CreateChirpResponse, len(chirps))
+	for i, chirp := range chirps {
+		responses[i] = CreateChirpResponse{
+			ID:        chirp.ID.String(),
+			CreatedAt: chirp.CreatedAt.Format("2006-01-02T15:04:05Z"),
+			UpdatedAt: chirp.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+			Body:      chirp.Body,
+			UserID:    chirp.UserID.String(),
+		}
+	}
+
+	//Set header and write JSON response w/ 200 status code
+	w.Header().Set("Content-type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(responses)
+}
+
 func (cfg *apiConfig) createChirpHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -141,7 +217,7 @@ func cleanChirpText(body string) string {
 	return body
 }
 
-func validateChirpHandler(w http.ResponseWriter, r *http.Request) {
+/*func validateChirpHandler(w http.ResponseWriter, r *http.Request) {
 	//See if it's POST method
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -173,7 +249,7 @@ func validateChirpHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(SuccessResponse{CleanedBody: cleanedBody})
 
-}
+}*/
 
 func healthzHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -267,7 +343,18 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/users", apiCfg.createUserHandler)
-	mux.HandleFunc("/api/chirps", apiCfg.createChirpHandler)
+
+	mux.HandleFunc("/api/chirps", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			apiCfg.createChirpHandler(w, r)
+		} else if r.Method == http.MethodGet {
+			apiCfg.getChirpsHandler(w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+	mux.HandleFunc("/api/chirps/{chirpID}", apiCfg.getChirpByIDHandler)
+
 	mux.HandleFunc("/admin/metrics", apiCfg.metricsHandler)
 	mux.HandleFunc("/admin/reset", apiCfg.resetHandler)
 

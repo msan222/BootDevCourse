@@ -3,6 +3,12 @@ POST http://localhost:8080/api/chirps
 Content-Type: application/json
 
 {
-    "body": "Chirp chirp I'm tired",
+    "body": "Chirp chirp feathers mccgraw",
     "user_id": "123e4567-e89b-12d3-a456-426614174000"
 }
+
+### Test Get Chirps Method (all)
+GET http://localhost:8080/api/chirps
+
+### Test GET Chirps Method (singular by ID)
+GET http://localhost:8080/api/chirps/b1f76cc6-0201-4be5-b407-b4fca95e9c2f

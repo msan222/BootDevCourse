@@ -1,0 +1,1 @@
+Sends the list of chirps in responses back as a JSON with 200 OK
