@@ -1,0 +1,1 @@
+- Checks to see if there was an error while parsing the token. If yes return empty UUID and error message. Means token was invalid. 

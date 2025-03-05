@@ -1,6 +1,7 @@
 package main
 
 import (
+	"BootDevCourse/internal/auth"
 	"BootDevCourse/internal/database"
 	"database/sql"
 	"encoding/json"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"regexp"
 	"sync/atomic"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
@@ -148,7 +150,8 @@ func (cfg *apiConfig) createChirpHandler(w http.ResponseWriter, r *http.Request)
 }
 
 type CreateUserRequest struct {
-	Email string `json:"email"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 type CreateUserResponse struct {
@@ -172,8 +175,19 @@ func (cfg *apiConfig) createUserHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	//Call database to create user
-	user, err := cfg.dbQueries.CreateUser(r.Context(), req.Email)
+	hashedPassword, err2 := auth.HashPassword(req.Password) //Call HashPassword function
+	if err2 != nil {
+		http.Error(w, "Failed to hash password", http.StatusInternalServerError)
+		return
+	}
+
+	//Call database to create user with hashed password
+	createUserParams := database.CreateUserParams{
+		Email:          req.Email,
+		HashedPassword: hashedPassword,
+	}
+
+	user, err := cfg.dbQueries.CreateUser(r.Context(), createUserParams)
 	if err != nil {
 		http.Error(w, "Failed to Create User", http.StatusInternalServerError)
 		return
@@ -190,6 +204,65 @@ func (cfg *apiConfig) createUserHandler(w http.ResponseWriter, r *http.Request) 
 	//Send the JSON response
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(resp)
+}
+
+func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	//read and decode JSON request body
+	var req CreateUserRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	//Query database to find user by email
+	user, err := cfg.dbQueries.GetUserByEmail(r.Context(), req.Email)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "Incorrect email or password", http.StatusUnauthorized)
+			return
+		}
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	//Compare the entered password to the one stored in hash
+	err = auth.CheckPasswordHash(req.Password, user.HashedPassword)
+	if err != nil {
+		http.Error(w, "Incorrect email or password", http.StatusUnauthorized)
+		return
+	}
+
+	// Generate JWT
+	token, err1 := auth.MakeJWT(user.ID, cfg.JWTSecret, time.Hour*24) // 24 hours expiration
+	if err1 != nil {
+		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
+		return
+	}
+
+	//if password matches return user data
+	/*resp := CreateUserResponse{
+		ID:        user.ID.String(),
+		CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		UpdatedAt: user.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+		Email:     user.Email,
+	}*/
+
+	//Return token in response
+	resp := struct {
+		Token string `json:token`
+	}{
+		Token: token,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(resp)
 }
 
@@ -264,6 +337,7 @@ func healthzHandler(w http.ResponseWriter, r *http.Request) {
 type apiConfig struct {
 	fileserverHits atomic.Int32
 	dbQueries      *database.Queries
+	JWTSecret      string
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -322,6 +396,11 @@ func main() {
 		log.Fatal("Error loading .env file")
 	}
 
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		log.Fatal("JWT_SECRET is not set in the .env file")
+	}
+
 	//get database connection from enviroment variables
 	dbURL := os.Getenv("DB_URL")
 
@@ -339,10 +418,12 @@ func main() {
 
 	apiCfg := &apiConfig{
 		dbQueries: dbQueries,
+		JWTSecret: jwtSecret,
 	}
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/users", apiCfg.createUserHandler)
+	mux.HandleFunc("/api/login", apiCfg.loginHandler)
 
 	mux.HandleFunc("/api/chirps", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {

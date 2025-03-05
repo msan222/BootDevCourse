@@ -1,0 +1,2 @@
+- Checks if the claims inside the token are of the *jwt.RegisteredClaims type, which contains all token info. 
+- token.Valid checks if it is valid.

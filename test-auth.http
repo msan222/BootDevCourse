@@ -1,0 +1,22 @@
+### Test admin
+POST http://localhost:8080/admin/reset
+Content-Type: application/json
+
+### Test CreateUser Method
+POST http://localhost:8080/api/users
+Content-Type: application/json
+
+{
+    "email": "madsandcastle@gmail.com",
+    "password": "1298086"
+}
+
+### Test api login
+POST http://localhost:8080/api/login
+Content-Type: application/json
+
+{
+    "email": "22sanvictores@gmail.com",
+    "password": "123456"
+}
+

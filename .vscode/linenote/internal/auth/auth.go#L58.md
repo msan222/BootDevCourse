@@ -1,0 +1,1 @@
+If signing method is HMAC return secret key as a byte slice. It has to be in bytes to be used by the HMAC algorithm to verify the signature of the token. 
