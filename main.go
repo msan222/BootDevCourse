@@ -113,8 +113,20 @@ func (cfg *apiConfig) createChirpHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	tokenString, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		http.Error(w, "Unauthorized: Missing or invalid token", http.StatusUnauthorized)
+		return
+	}
+
+	userID, err := auth.ValidateJWT(tokenString, cfg.JWTSecret)
+	if err != nil {
+		http.Error(w, "Unauthorized: Invalid token", http.StatusUnauthorized)
+		return
+	}
+
 	var req CreateChirpRequest
-	err := json.NewDecoder(r.Body).Decode(&req)
+	err = json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		http.Error(w, "Invalid Request Body", http.StatusBadRequest)
 		return
@@ -129,7 +141,7 @@ func (cfg *apiConfig) createChirpHandler(w http.ResponseWriter, r *http.Request)
 
 	chirp, err := cfg.dbQueries.CreateChirp(r.Context(), database.CreateChirpParams{
 		Body:   cleanedBody,
-		UserID: req.UserID,
+		UserID: userID,
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -214,7 +226,12 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//read and decode JSON request body
-	var req CreateUserRequest
+	var req struct {
+		Email            string `json:"email"`
+		Password         string `json:"password"`
+		ExpiresInSeconds int    `json:"expires_in_seconds,omitempty"`
+	}
+
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -239,8 +256,14 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//set expiration time
+	expiresIn := time.Hour
+	if req.ExpiresInSeconds > 0 && req.ExpiresInSeconds <= 3600 {
+		expiresIn = time.Duration(req.ExpiresInSeconds) * time.Second
+	}
+
 	// Generate JWT
-	token, err1 := auth.MakeJWT(user.ID, cfg.JWTSecret, time.Hour*24) // 24 hours expiration
+	token, err1 := auth.MakeJWT(user.ID, cfg.JWTSecret, expiresIn) // 24 hours expiration
 	if err1 != nil {
 		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
 		return
@@ -256,9 +279,17 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	//Return token in response
 	resp := struct {
-		Token string `json:token`
+		ID        string `json:"id"`
+		CreatedAt string `json:"created_at"`
+		UpdatedAt string `json:"updated_at"`
+		Email     string `json:"email"`
+		Token     string `json:"token"`
 	}{
-		Token: token,
+		ID:        user.ID.String(),
+		CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		UpdatedAt: user.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+		Email:     user.Email,
+		Token:     token,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

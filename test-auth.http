@@ -16,7 +16,18 @@ POST http://localhost:8080/api/login
 Content-Type: application/json
 
 {
-    "email": "22sanvictores@gmail.com",
-    "password": "123456"
+    "email": "madsandcastle@gmail.com",
+    "password": "1298086"
 }
+
+### Test api chirps
+POST http://localhost:8080/api/chirps
+Content-Type: application/json
+Authorization: Bearer ${jwtTokenmadsandcastle}
+
+{
+  "body": "Clearly his taste in women is the same as his taste in lawyers: only the very best... with just a right amount of dirty!"
+}
+
+
 
