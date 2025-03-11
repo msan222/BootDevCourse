@@ -93,6 +93,15 @@ func (cfg *apiConfig) revokeHandler(w http.ResponseWriter, r *http.Request) {
 		Token:     refreshToken,
 	}
 
+	//Set the token with revokedParams
+	err = cfg.dbQueries.RevokeRefreshToken(r.Context(), revokedParams)
+	if err != nil {
+		http.Error(w, "Failed to revoke refresh token", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+
 }
 
 func (cfg *apiConfig) getChirpByIDHandler(w http.ResponseWriter, r *http.Request) {
@@ -543,6 +552,7 @@ func main() {
 	mux.HandleFunc("/api/users", apiCfg.createUserHandler)
 	mux.HandleFunc("/api/login", apiCfg.loginHandler)
 	mux.HandleFunc("/api/refresh", apiCfg.refreshHandler)
+	mux.HandleFunc("/api/revoke", apiCfg.revokeHandler)
 
 	mux.HandleFunc("/api/chirps", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {

@@ -23,11 +23,20 @@ Content-Type: application/json
 ### Test api chirps
 POST http://localhost:8080/api/chirps
 Content-Type: application/json
-Authorization: Bearer ${jwtTokenmadsandcastle}
+Authorization: Bearer 
 
 {
-  "body": "Clearly his taste in women is the same as his taste in lawyers: only the very best... with just a right amount of dirty!"
+  "body": "Clearly his taste in dirt is the same as his taste in lawyers: only the very best... with just a right amount of dirty!"
 }
 
+### Test api refresh token
+POST http://localhost:8080/api/refresh
+Content-Type: application/json
+Authorization: Bearer b6c11d79c3f4ddb8e9ac7e9dc68557ce274c8f295ad3d85d8a44a86d783470f1
+
+### Test api revoke refresh token
+POST http://localhost:8080/api/revoke
+Content-Type: application/json
+Authorization: Bearer b6c11d79c3f4ddb8e9ac7e9dc68557ce274c8f295ad3d85d8a44a86d783470f1
 
 
