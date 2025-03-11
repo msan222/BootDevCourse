@@ -3,6 +3,8 @@
 package auth
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"net/http"
 	"strings"
@@ -75,6 +77,7 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 	return uuid.Nil, errors.New("invalid token")
 }
 
+// extract a JWT from the HTTP Authorization header of incoming requests
 func GetBearerToken(headers http.Header) (string, error) {
 	authHeader := headers.Get("Authorization")
 	if authHeader == "" {
@@ -87,4 +90,18 @@ func GetBearerToken(headers http.Header) (string, error) {
 		return "", errors.New("invalid authorization format")
 	}
 	return parts[1], nil
+}
+
+func MakeRefreshToken() (string, error) {
+	//Generate 32 bytes of random data
+	tokenBytes := make([]byte, 32)
+	_, err := rand.Read(tokenBytes)
+	if err != nil {
+		return "", errors.New("failed to generate random token")
+	}
+
+	//Convert random bytes to hex string
+	token := hex.EncodeToString(tokenBytes)
+
+	return token, nil
 }

@@ -5,6 +5,7 @@ import (
 	"BootDevCourse/internal/database"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -29,6 +30,69 @@ type CreateChirpResponse struct {
 	UpdatedAt string `json:"updated_at"`
 	Body      string `json:"body"`
 	UserID    string `json:"user_id"`
+}
+
+func (cfg *apiConfig) refreshHandler(w http.ResponseWriter, r *http.Request) {
+	//Extract refresh token from authorization header
+	refreshToken, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		http.Error(w, "Unauthorized: Missing or invalid refresh token", http.StatusBadRequest)
+		return
+	}
+
+	//Query database for user associated with refresh token
+	user1, err := cfg.dbQueries.GetUserFromRefreshToken(r.Context(), refreshToken)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "Invalid or expired refresh token", http.StatusUnauthorized)
+		} else {
+			http.Error(w, "Database Error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	//Issue new access token for 1 hour
+	accessToken, err := auth.MakeJWT(user1, cfg.JWTSecret, time.Hour) // 1 hour expiration
+	if err != nil {
+		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
+		return
+	}
+
+	response := map[string]interface{}{
+		"token": accessToken,
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
+}
+
+func (cfg *apiConfig) revokeHandler(w http.ResponseWriter, r *http.Request) {
+	//Get token from authorization header
+	refreshToken, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		http.Error(w, "Invalid or missing refresh token", http.StatusUnauthorized)
+		return
+	}
+
+	//look up refresh token in database
+	tokenExists, err := cfg.dbQueries.CheckRefreshTokenExists(r.Context(), refreshToken)
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	//if token doesn't exist respond with 401
+	if !tokenExists {
+		http.Error(w, "Invalid or expired refresh token", http.StatusUnauthorized)
+		return
+	}
+
+	//Revoke Token by setting revoked_at to current time
+	revokedParams := database.RevokeRefreshTokenParams{
+		RevokedAt: sql.NullTime{Time: time.Now(), Valid: true},
+		Token:     refreshToken,
+	}
+
 }
 
 func (cfg *apiConfig) getChirpByIDHandler(w http.ResponseWriter, r *http.Request) {
@@ -257,15 +321,36 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//set expiration time
-	expiresIn := time.Hour
+	/*expiresIn := time.Hour
 	if req.ExpiresInSeconds > 0 && req.ExpiresInSeconds <= 3600 {
 		expiresIn = time.Duration(req.ExpiresInSeconds) * time.Second
-	}
+	}*/
 
 	// Generate JWT
-	token, err1 := auth.MakeJWT(user.ID, cfg.JWTSecret, expiresIn) // 24 hours expiration
-	if err1 != nil {
+	token, err := auth.MakeJWT(user.ID, cfg.JWTSecret, time.Hour) // 1 hour expiration
+	if err != nil {
 		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
+		return
+	}
+
+	//Generate Refresh token
+	refreshToken, err := auth.MakeRefreshToken()
+	if err != nil {
+		http.Error(w, "Failed to generate refresh token", http.StatusInternalServerError)
+		return
+	}
+
+	//store refresh token in database with 60-day expiry
+	expiresAt := time.Now().Add(60 * 24 * time.Hour) //60 days
+	_, err = cfg.dbQueries.CreateRefreshToken(r.Context(), database.CreateRefreshTokenParams{
+		Token:     refreshToken,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		UserID:    user.ID,
+		ExpiresAt: expiresAt,
+	})
+	if err != nil {
+		http.Error(w, "Failed to store refresh token", http.StatusInternalServerError)
 		return
 	}
 
@@ -277,19 +362,21 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		Email:     user.Email,
 	}*/
 
-	//Return token in response
+	//Return tokens in response
 	resp := struct {
-		ID        string `json:"id"`
-		CreatedAt string `json:"created_at"`
-		UpdatedAt string `json:"updated_at"`
-		Email     string `json:"email"`
-		Token     string `json:"token"`
+		ID           string `json:"id"`
+		CreatedAt    string `json:"created_at"`
+		UpdatedAt    string `json:"updated_at"`
+		Email        string `json:"email"`
+		Token        string `json:"token"`
+		RefreshToken string `json:"refresh_token"`
 	}{
-		ID:        user.ID.String(),
-		CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05Z"),
-		UpdatedAt: user.UpdatedAt.Format("2006-01-02T15:04:05Z"),
-		Email:     user.Email,
-		Token:     token,
+		ID:           user.ID.String(),
+		CreatedAt:    user.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		UpdatedAt:    user.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+		Email:        user.Email,
+		Token:        token,
+		RefreshToken: refreshToken,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -455,6 +542,7 @@ func main() {
 
 	mux.HandleFunc("/api/users", apiCfg.createUserHandler)
 	mux.HandleFunc("/api/login", apiCfg.loginHandler)
+	mux.HandleFunc("/api/refresh", apiCfg.refreshHandler)
 
 	mux.HandleFunc("/api/chirps", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {

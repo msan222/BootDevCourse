@@ -1,0 +1,1 @@
+_, err: We're ignoring the first return value (which is the number of bytes read) and just keeping the second return value, which is the error. If something goes wrong (like if the system can't generate random bytes), it will return an error, and we will check it.
