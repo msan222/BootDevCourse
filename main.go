@@ -19,6 +19,94 @@ import (
 	_ "github.com/lib/pq"
 )
 
+type UpdateUserRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type UserUpdateResponse struct {
+	ID    string `json:"id"`
+	Email string `json:"email"`
+}
+
+func (cfg *apiConfig) UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	//check for access token in header
+	tokenString, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		http.Error(w, "Unauthorized: Missing or invalid token", http.StatusUnauthorized)
+		return
+	}
+
+	//validate access token and find the user
+	userID, err := auth.ValidateJWT(tokenString, cfg.JWTSecret)
+	if err != nil {
+		http.Error(w, "Unauthorized: Invalid token", http.StatusUnauthorized)
+		return
+	}
+
+	//read and decode JSON request body
+	var req UpdateUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	//retrieve current user's email and hashed password from database
+	user, err := cfg.dbQueries.GetUserByEmail(r.Context(), userID.String())
+	if err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "User not found", http.StatusUnauthorized)
+			return
+		}
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	//checks password hash to see if they are the same
+	err = auth.CheckPasswordHash(req.Password, user.HashedPassword)
+	//check if at least one field is being changed
+	if req.Email == user.Email && err == nil {
+		http.Error(w, "Email or password must be updated", http.StatusBadRequest)
+		return
+	}
+
+	//Checks to make sure neither field is empty and hashes password
+	var newHashedPassword string
+	if req.Email != "" && req.Password != "" {
+		// Hash the new password
+		newHashedPassword, err = auth.HashPassword(req.Password)
+		if err != nil {
+			http.Error(w, "Error hashing password", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	updatedUser, err := cfg.dbQueries.UpdateUser(r.Context(), database.UpdateUserParams{
+		ID:             userID,
+		Email:          req.Email,
+		HashedPassword: newHashedPassword,
+	})
+	if err != nil {
+		http.Error(w, "Failed to update user", http.StatusInternalServerError)
+		return
+	}
+
+	//Respond with updated user info excluding password
+	userResponse := UserUpdateResponse{
+		ID:    updatedUser.ID.String(),
+		Email: updatedUser.Email,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(userResponse)
+}
+
 type CreateChirpRequest struct {
 	Body   string    `json:"body"`
 	UserID uuid.UUID `json:"user_id"`
@@ -395,7 +483,8 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 var profaneWords = []string{"kerfuffle", "sharbert", "fornax"}
 
-type ChirpRequest struct { // holds body of incoming JSON request
+// holds body of incoming JSON request
+type ChirpRequest struct {
 	Body string `json:"body"`
 }
 

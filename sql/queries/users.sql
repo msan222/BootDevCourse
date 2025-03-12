@@ -19,10 +19,14 @@ WHERE email = $1
 LIMIT 1;
 
 -- name: GetUserByID :one 
-SELECT id, email, hashed_password, created_at, updated_at
+SELECT email, hashed_password
 FROM users
 WHERE id = $1
 LIMIT 1;
 
-            
+-- name: UpdateUser :one 
+UPDATE users
+SET email = $2, hashed_password = $3
+WHERE id = $1
+RETURNING id, email, hashed_password;
                         
