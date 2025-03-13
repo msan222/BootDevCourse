@@ -57,7 +57,7 @@ func (cfg *apiConfig) UserUpdateHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	//retrieve current user's email and hashed password from database
-	user, err := cfg.dbQueries.GetUserByEmail(r.Context(), userID.String())
+	user, err := cfg.dbQueries.GetUserByID(r.Context(), userID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			http.Error(w, "User not found", http.StatusUnauthorized)
@@ -86,6 +86,7 @@ func (cfg *apiConfig) UserUpdateHandler(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
+	//update the user data and save in the database
 	updatedUser, err := cfg.dbQueries.UpdateUser(r.Context(), database.UpdateUserParams{
 		ID:             userID,
 		Email:          req.Email,
@@ -638,7 +639,16 @@ func main() {
 	}
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/api/users", apiCfg.createUserHandler)
+	mux.HandleFunc("/api/users", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			apiCfg.createUserHandler(w, r)
+		} else if r.Method == http.MethodPut {
+			apiCfg.UserUpdateHandler(w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
 	mux.HandleFunc("/api/login", apiCfg.loginHandler)
 	mux.HandleFunc("/api/refresh", apiCfg.refreshHandler)
 	mux.HandleFunc("/api/revoke", apiCfg.revokeHandler)

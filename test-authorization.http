@@ -1,0 +1,79 @@
+### Test admin
+POST http://localhost:8080/admin/reset
+Content-Type: application/json
+
+### Test CreateUser Method
+POST http://localhost:8080/api/users
+Content-Type: application/json
+
+{
+    "email": "madsandcastle@gmail.com",
+    "password": "1298086"
+}
+
+### Test api login
+POST http://localhost:8080/api/login
+Content-Type: application/json
+
+{
+    "email": "madsandcastle@gmail.com",
+    "password": "1298086"
+}
+
+### Test PUT UserUpdate (change only password)
+PUT http://localhost:8080/api/users
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjaGlycHkiLCJzdWIiOiIwZTE1MDgyMC0xMjI2LTQ1MTUtODkxNS02MTNhZjU5OGExNDMiLCJleHAiOjE3NDE5MDgxODEsImlhdCI6MTc0MTkwNDU4MX0.iTuOf4VhzBTLKJOvpTpVO0AzTe5ay2Me223z7TPXncI
+
+{
+    "email": "madsandcastle@gmail.com",
+    "password": "ABSASPIJDs"
+}
+
+### Test PUT UserUpdate (change only email)
+PUT http://localhost:8080/api/users
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjaGlycHkiLCJzdWIiOiIwZTE1MDgyMC0xMjI2LTQ1MTUtODkxNS02MTNhZjU5OGExNDMiLCJleHAiOjE3NDE5MDgxODEsImlhdCI6MTc0MTkwNDU4MX0.iTuOf4VhzBTLKJOvpTpVO0AzTe5ay2Me223z7TPXncI
+
+{
+    "email": "22sanvictores@gmail.com",
+    "password": "ABSASPIJDs"
+}
+
+### Test PUT UserUpdate (change both)
+PUT http://localhost:8080/api/users
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjaGlycHkiLCJzdWIiOiIwZTE1MDgyMC0xMjI2LTQ1MTUtODkxNS02MTNhZjU5OGExNDMiLCJleHAiOjE3NDE5MDgxODEsImlhdCI6MTc0MTkwNDU4MX0.iTuOf4VhzBTLKJOvpTpVO0AzTe5ay2Me223z7TPXncI
+
+{
+    "email": "sillygoose@gmail.com",
+    "password": "123sfjpsidf"
+}
+
+### Test PUT UserUpdate (missing bearer token)
+PUT http://localhost:8080/api/users
+Content-Type: application/json
+
+{
+    "email": "madsandcastle@gmail.com",
+    "password": "ABSASPIJDs"
+}
+
+### Test PUT UserUpdate (wrong bearer token)
+PUT http://localhost:8080/api/users
+Content-Type: application/json
+Authorization: Bearer f4b2c10372c7d661ee5da4a8c13228df15ce6438ceca431e5cb2160423a46c5b
+
+{
+    "email": "madsandcastle@gmail.com",
+    "password": "ABSASPIJDs"
+}
+
+### Test api login
+POST http://localhost:8080/api/login
+Content-Type: application/json
+
+{
+    "email": "sillygoose@gmail.com",
+    "password": "123sfjpsidf"
+}
