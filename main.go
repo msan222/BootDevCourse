@@ -323,6 +323,69 @@ func (cfg *apiConfig) createChirpHandler(w http.ResponseWriter, r *http.Request)
 	json.NewEncoder(w).Encode(resp)
 }
 
+func (cfg *apiConfig) deleteChirpHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	tokenString, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		http.Error(w, "Unauthorized: Missing or invalid token", http.StatusUnauthorized)
+		return
+	}
+
+	userID, err := auth.ValidateJWT(tokenString, cfg.JWTSecret)
+	if err != nil {
+		http.Error(w, "Unauthorized: Invalid token", http.StatusUnauthorized)
+		return
+	}
+
+	// Extract the Chirp ID from the path
+	chirpID := r.PathValue("chirpID")
+	if chirpID == "" {
+		http.Error(w, "Missing chirp ID", http.StatusBadRequest)
+		return
+	}
+
+	//parse the Chirp id into a uuid
+	chirpUUID, err := uuid.Parse(chirpID)
+	if err != nil {
+		http.Error(w, "Invalid chirp ID", http.StatusBadRequest)
+		return
+	}
+
+	//Query the database for the chirp
+	chirp, err := cfg.dbQueries.GetChirpByID(r.Context(), chirpUUID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "Chirp not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	//make sure user is author
+	if chirp.UserID != userID {
+		http.Error(w, "Only the author can delete this chirp", http.StatusForbidden)
+		return
+	}
+
+	//delete the chirp by id
+	err = cfg.dbQueries.DeleteChirpByID(r.Context(), chirpUUID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "Chirp not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	//204 success no content
+	w.WriteHeader(http.StatusNoContent)
+}
+
 type CreateUserRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
@@ -662,7 +725,16 @@ func main() {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	})
-	mux.HandleFunc("/api/chirps/{chirpID}", apiCfg.getChirpByIDHandler)
+
+	mux.HandleFunc("/api/chirps/{chirpID}", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			apiCfg.getChirpByIDHandler(w, r)
+		} else if r.Method == http.MethodDelete {
+			apiCfg.deleteChirpHandler(w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
 
 	mux.HandleFunc("/admin/metrics", apiCfg.metricsHandler)
 	mux.HandleFunc("/admin/reset", apiCfg.resetHandler)

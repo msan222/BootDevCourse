@@ -20,60 +20,52 @@ Content-Type: application/json
     "password": "1298086"
 }
 
-### Test PUT UserUpdate (change only password)
-PUT http://localhost:8080/api/users
+### Test chirps
+POST http://localhost:8080/api/chirps
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjaGlycHkiLCJzdWIiOiIwZTE1MDgyMC0xMjI2LTQ1MTUtODkxNS02MTNhZjU5OGExNDMiLCJleHAiOjE3NDE5MDgxODEsImlhdCI6MTc0MTkwNDU4MX0.iTuOf4VhzBTLKJOvpTpVO0AzTe5ay2Me223z7TPXncI
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjaGlycHkiLCJzdWIiOiIyOWYyNjMyNy0zYjg4LTQyMDMtYWY3MC1mYjQ5Y2NmMDgyODMiLCJleHAiOjE3NDE5MTQ1MzIsImlhdCI6MTc0MTkxMDkzMn0.m-_4xjFLiCM5BVccXZdKlOUYNe4jS2rHZP8M3p2djyg
 
 {
-    "email": "madsandcastle@gmail.com",
-    "password": "ABSASPIJDs"
+  "body": "Clearly his taste in women is the same as his taste in lawyers: only the very best... with just a right amount of dirty!"
 }
 
-### Test PUT UserUpdate (change only email)
-PUT http://localhost:8080/api/users
+### Test Get chirp by ID
+GET http://localhost:8080/api/chirps/769fe7b8-b8ab-4046-938a-48bb35f21d0a
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjaGlycHkiLCJzdWIiOiIwZTE1MDgyMC0xMjI2LTQ1MTUtODkxNS02MTNhZjU5OGExNDMiLCJleHAiOjE3NDE5MDgxODEsImlhdCI6MTc0MTkwNDU4MX0.iTuOf4VhzBTLKJOvpTpVO0AzTe5ay2Me223z7TPXncI
 
-{
-    "email": "22sanvictores@gmail.com",
-    "password": "ABSASPIJDs"
-}
-
-### Test PUT UserUpdate (change both)
-PUT http://localhost:8080/api/users
+### Test delete chirp by ID
+DELETE http://localhost:8080/api/chirps/769fe7b8-b8ab-4046-938a-48bb35f21d0a
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjaGlycHkiLCJzdWIiOiIwZTE1MDgyMC0xMjI2LTQ1MTUtODkxNS02MTNhZjU5OGExNDMiLCJleHAiOjE3NDE5MDgxODEsImlhdCI6MTc0MTkwNDU4MX0.iTuOf4VhzBTLKJOvpTpVO0AzTe5ay2Me223z7TPXncI
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjaGlycHkiLCJzdWIiOiIyOWYyNjMyNy0zYjg4LTQyMDMtYWY3MC1mYjQ5Y2NmMDgyODMiLCJleHAiOjE3NDE5MTQ1MzIsImlhdCI6MTc0MTkxMDkzMn0.m-_4xjFLiCM5BVccXZdKlOUYNe4jS2rHZP8M3p2djyg
+
+### Create User
+POST http://localhost:8080/api/users
+Content-Type: application/json
 
 {
     "email": "sillygoose@gmail.com",
-    "password": "123sfjpsidf"
+    "password": "srgpifd34"
 }
 
-### Test PUT UserUpdate (missing bearer token)
-PUT http://localhost:8080/api/users
-Content-Type: application/json
-
-{
-    "email": "madsandcastle@gmail.com",
-    "password": "ABSASPIJDs"
-}
-
-### Test PUT UserUpdate (wrong bearer token)
-PUT http://localhost:8080/api/users
-Content-Type: application/json
-Authorization: Bearer f4b2c10372c7d661ee5da4a8c13228df15ce6438ceca431e5cb2160423a46c5b
-
-{
-    "email": "madsandcastle@gmail.com",
-    "password": "ABSASPIJDs"
-}
-
-### Test api login
+###
 POST http://localhost:8080/api/login
 Content-Type: application/json
 
 {
     "email": "sillygoose@gmail.com",
-    "password": "123sfjpsidf"
+    "password": "srgpifd34"
 }
+
+### Test delete chirp (403)
+DELETE http://localhost:8080/api/chirps/2b11c820-42dd-4eaa-8c0c-1c6bca1e1a52
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjaGlycHkiLCJzdWIiOiJmMGZjOGE4MS03YTk5LTRmYmYtODZjYS03YTU3N2QyNjFmODUiLCJleHAiOjE3NDE5MTQ4MzUsImlhdCI6MTc0MTkxMTIzNX0.hGuknM07opmz1TsssVchDCZPOKPAI6fiM8N7CLQ75rk
+
+### Test delete chirp (204)
+DELETE http://localhost:8080/api/chirps/2b11c820-42dd-4eaa-8c0c-1c6bca1e1a52
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjaGlycHkiLCJzdWIiOiIxNDM4Y2JlYi00NTU5LTQzYzgtOGM4Mi03OGZlMzYyNGE1YWUiLCJleHAiOjE3NDE5MTM1NzksImlhdCI6MTc0MTkwOTk3OX0.OB6qrKi47s0uXpTUTPxcaTYVN7zOKEpEV625Wl6OS9k
+
+### Test get chirps
+GET http://localhost:8080/api/chirps/2b11c820-42dd-4eaa-8c0c-1c6bca1e1a52
+Content-Type: application/json
