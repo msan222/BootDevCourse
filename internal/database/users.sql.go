@@ -13,15 +13,16 @@ import (
 )
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (id, created_at, updated_at, email, hashed_password)
+INSERT INTO users (id, created_at, updated_at, email, hashed_password, is_chirpy_red)
 VALUES (
     gen_random_uuid(),  
     NOW(),             
     NOW(),              
     $1,
-    $2                  
+    $2,
+    FALSE                  
 )
-RETURNING id, email, created_at, updated_at
+RETURNING id, email, created_at, updated_at, is_chirpy_red
 `
 
 type CreateUserParams struct {
@@ -30,10 +31,11 @@ type CreateUserParams struct {
 }
 
 type CreateUserRow struct {
-	ID        uuid.UUID
-	Email     string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID          uuid.UUID
+	Email       string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	IsChirpyRed bool
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
@@ -44,6 +46,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 		&i.Email,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsChirpyRed,
 	)
 	return i, err
 }
@@ -58,7 +61,7 @@ func (q *Queries) DeleteAllUsers(ctx context.Context) error {
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, hashed_password, created_at, updated_at
+SELECT id, email, hashed_password, created_at, updated_at, is_chirpy_red
 FROM users
 WHERE email = $1
 LIMIT 1
@@ -70,6 +73,7 @@ type GetUserByEmailRow struct {
 	HashedPassword string
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	IsChirpyRed    bool
 }
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error) {
@@ -81,12 +85,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEm
 		&i.HashedPassword,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsChirpyRed,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, hashed_password, created_at, updated_at
+SELECT id, email, hashed_password, created_at, updated_at, is_chirpy_red
 FROM users
 WHERE id = $1
 LIMIT 1
@@ -98,6 +103,7 @@ type GetUserByIDRow struct {
 	HashedPassword string
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	IsChirpyRed    bool
 }
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow, error) {
@@ -109,13 +115,14 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow
 		&i.HashedPassword,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsChirpyRed,
 	)
 	return i, err
 }
 
 const updateUser = `-- name: UpdateUser :one
 UPDATE users
-SET email = $2, hashed_password = $3
+SET email = $2, hashed_password = $3, is_chirpy_red = $4
 WHERE id = $1
 RETURNING id, email, hashed_password
 `
@@ -124,6 +131,7 @@ type UpdateUserParams struct {
 	ID             uuid.UUID
 	Email          string
 	HashedPassword string
+	IsChirpyRed    bool
 }
 
 type UpdateUserRow struct {
@@ -133,7 +141,12 @@ type UpdateUserRow struct {
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (UpdateUserRow, error) {
-	row := q.db.QueryRowContext(ctx, updateUser, arg.ID, arg.Email, arg.HashedPassword)
+	row := q.db.QueryRowContext(ctx, updateUser,
+		arg.ID,
+		arg.Email,
+		arg.HashedPassword,
+		arg.IsChirpyRed,
+	)
 	var i UpdateUserRow
 	err := row.Scan(&i.ID, &i.Email, &i.HashedPassword)
 	return i, err

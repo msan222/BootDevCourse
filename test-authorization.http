@@ -69,3 +69,18 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjaGlycHkiL
 ### Test get chirps
 GET http://localhost:8080/api/chirps/2b11c820-42dd-4eaa-8c0c-1c6bca1e1a52
 Content-Type: application/json
+
+### Check Polka auth key
+POST http://localhost:8080/api/polka/webhooks
+Content-Type: application/json
+Authorization: ApiKey f271c81ff7084ee5b99a5091b42d486e
+
+{
+  "data": {
+    "user_id": "7204b1c1-aa2c-4cbe-a637-bf8b7c3925bf"
+  },
+  "event": "user.upgraded"
+}
+
+
+

@@ -386,16 +386,72 @@ func (cfg *apiConfig) deleteChirpHandler(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (cfg *apiConfig) PokaWebhookHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	//verify API key
+	key, err := auth.GetAPIKey(r.Header)
+	if err != nil || key != cfg.PolkaKey {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req PolkaWebhookRequest
+
+	//validate json body
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	//Ignore other events
+	if req.Event != "user.upgraded" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	//convert into usable UUID
+	user_uuidID, err := uuid.Parse(req.Data.UserID)
+	if err != nil {
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+
+	//update database
+	err = cfg.dbQueries.UpgradeUserToChirpyRed(r.Context(), user_uuidID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "User not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type PolkaWebhookRequest struct {
+	Event string `json:"event"`
+	Data  struct {
+		UserID string `json:"user_id"`
+	} `json:"data"`
+}
+
 type CreateUserRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
 type CreateUserResponse struct {
-	ID        string `json:"id"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
-	Email     string `json:"email"`
+	ID          string `json:"id"`
+	CreatedAt   string `json:"created_at"`
+	UpdatedAt   string `json:"updated_at"`
+	Email       string `json:"email"`
+	IsChirpyRed bool
 }
 
 func (cfg *apiConfig) createUserHandler(w http.ResponseWriter, r *http.Request) {
@@ -432,10 +488,11 @@ func (cfg *apiConfig) createUserHandler(w http.ResponseWriter, r *http.Request) 
 
 	//Build Response
 	resp := CreateUserResponse{
-		ID:        user.ID.String(),
-		CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05Z"),
-		UpdatedAt: user.UpdatedAt.Format("2006-01-02T15:04:05Z"),
-		Email:     user.Email,
+		ID:          user.ID.String(),
+		CreatedAt:   user.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		UpdatedAt:   user.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+		Email:       user.Email,
+		IsChirpyRed: false,
 	}
 
 	//Send the JSON response
@@ -531,6 +588,7 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		Email        string `json:"email"`
 		Token        string `json:"token"`
 		RefreshToken string `json:"refresh_token"`
+		IsChirpyRed  bool   `json:"is_chirpy_red"`
 	}{
 		ID:           user.ID.String(),
 		CreatedAt:    user.CreatedAt.Format("2006-01-02T15:04:05Z"),
@@ -538,6 +596,7 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		Email:        user.Email,
 		Token:        token,
 		RefreshToken: refreshToken,
+		IsChirpyRed:  user.IsChirpyRed,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -618,6 +677,7 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 	dbQueries      *database.Queries
 	JWTSecret      string
+	PolkaKey       string
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -671,23 +731,30 @@ func (cfg *apiConfig) resetHandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	//load enviroment variables from .env
-	err1 := godotenv.Load()
-	if err1 != nil {
+	envir_ := godotenv.Load()
+	if envir_ != nil {
 		log.Fatal("Error loading .env file")
 	}
 
+	//load secret key
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
 		log.Fatal("JWT_SECRET is not set in the .env file")
+	}
+
+	//load webhook key
+	polkaKey := os.Getenv("POLKA_KEY")
+	if polkaKey == "" {
+		log.Fatal("POLKA_KEY is not set in the .env file")
 	}
 
 	//get database connection from enviroment variables
 	dbURL := os.Getenv("DB_URL")
 
 	//open a connection to the PostgreSQL database
-	db, err1 := sql.Open("postgres", dbURL)
-	if err1 != nil {
-		log.Fatal("Error connecting to the database: ", err1)
+	db, envir_ := sql.Open("postgres", dbURL)
+	if envir_ != nil {
+		log.Fatal("Error connecting to the database: ", envir_)
 	}
 	defer db.Close()
 
@@ -699,6 +766,7 @@ func main() {
 	apiCfg := &apiConfig{
 		dbQueries: dbQueries,
 		JWTSecret: jwtSecret,
+		PolkaKey:  polkaKey,
 	}
 	mux := http.NewServeMux()
 
@@ -712,6 +780,7 @@ func main() {
 		}
 	})
 
+	mux.HandleFunc("/api/polka/webhooks", apiCfg.PokaWebhookHandler)
 	mux.HandleFunc("/api/login", apiCfg.loginHandler)
 	mux.HandleFunc("/api/refresh", apiCfg.refreshHandler)
 	mux.HandleFunc("/api/revoke", apiCfg.revokeHandler)
