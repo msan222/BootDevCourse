@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"sort"
 	"sync/atomic"
 	"time"
 
@@ -244,11 +245,24 @@ func (cfg *apiConfig) getChirpsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sortOrder := r.URL.Query().Get("sort")
+
 	//Call generated query to list chirps
 	chirps, err := cfg.dbQueries.GetAllChirps(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	//sort chirps in-memory
+	if sortOrder != "desc" {
+		sort.Slice(chirps, func(i, j int) bool {
+			return chirps[i].CreatedAt.After(chirps[j].CreatedAt)
+		})
+	} else { //default asc
+		sort.Slice(chirps, func(i, j int) bool {
+			return chirps[i].CreatedAt.Before(chirps[j].CreatedAt)
+		})
 	}
 
 	//prepare a response slice using the same structure as  CreateChirpResponse
@@ -826,4 +840,3 @@ func main() {
 	}
 
 }
-//Test
